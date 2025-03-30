@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "release": "standard-version && node sync-version.js",
-    "develop": "git add . && git commit -m \"chore(release): publish new version\" && git push origin develop"
+  "develop": "node -e \"const pkg=require('./package.json'); console.log(`git add . && git commit -m 'chore(release): publish new version ${pkg.version}' && git push origin main`)\" | sh"
   },
   "keywords": [],
   "author": "",
