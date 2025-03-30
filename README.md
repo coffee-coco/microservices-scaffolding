@@ -2,6 +2,7 @@
 
 This repository provides the basic scaffolding required for developing REST APIs using Node.js. It includes a simple REST API with two endpoints, a GitHub Actions pipeline, and a Dockerfile for containerization.
 
+
 ## Endpoints
 
 - `/`: Returns a "Hello World" message.
