@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "release": "standard-version && node sync-version.js",
-        "publish": "git add . && git commit -m \"chore(release): publish new version\" && git push origin develop"
+    "develop": "git add . && git commit -m \"chore(release): publish new version\" && git push origin develop"
   },
   "keywords": [],
   "author": "",
