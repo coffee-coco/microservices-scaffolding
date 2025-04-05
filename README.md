@@ -158,8 +158,8 @@ handleErrorResponse(res, 500, 'Internal Server Error');
 1. Install Node.js and npm.
 2. Clone the repository.
    ```bash
-   git clone <repository-url>
-   cd <repository-folder>
+   git clone $ docker pull ghcr.io/coffee-coco/microservices-scaffolding:latest
+   cd microservices-scaffolding
    ```
 3. Install dependencies:
    ```bash
