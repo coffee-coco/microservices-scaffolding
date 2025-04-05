@@ -1,20 +1,32 @@
 {
   "name": "microservices-scaffolding",
-  "version": "1.0.5",
+  "version": "1.0.15",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "preinstall": "pip install checkov",
+    "test": "jest",
+    "lint": "eslint .",
     "release": "standard-version && node sync-version.js",
-        "publish": "git add . && git commit -m \"chore(release): publish new version\" && git push origin develop"
+    "develop": "node -e \"const pkg=require('./package.json'); console.log('git add . && git commit -m \\'chore(release): publish new version ' + pkg.version + '\\' && git push --follow-tags origin develop')\" | sh",
+    "docker:build": "docker build -t ghcr.io/coffee-coco/microservices-scaffolding:latest -t ghcr.io/coffee-coco/microservices-scaffolding:$(node -p -e \"require('./package.json').version\") .",
+    "docker:push": "docker push ghcr.io/coffee-coco/microservices-scaffolding:latest && docker push ghcr.io/coffee-coco/microservices-scaffolding:$(node -p -e \"require('./package.json').version\")",
+    "docker:publish": "npm run release && npm run test && npm run docker:build && npm run docker:push",
+    "checkov": "checkov -d ."
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
-    "standard-version": "^9.5.0"
+    "@eslint/js": "^9.24.0",
+    "eslint": "^9.24.0",
+    "globals": "^16.0.0",
+    "jest": "^29.7.0",
+    "standard-version": "^9.5.0",
+    "supertest": "^7.1.0"
   }
 }
