@@ -72,8 +72,7 @@ const configCache = {
  */
 const extractAuthToken = (req) => {
     const authHeader = req.headers['authorization'];
-    return authHeader && authHeader.split(' ')[1];
-};
+    return authHeader && authHeader.split(' ')[1];};
 
 // Send a standardized error response
 /**
@@ -85,18 +84,9 @@ const sendErrorResponse = (res, statusCode, message) => {
 };
 
 // Load configuration with cache control
-/**
- * Asynchronously loads the configuration data.
- * Uses cached data if available and not expired.
- * Otherwise, reads metadata from 'metadata.json' file and updates the cache.
- * @returns {Object} The configuration data stored in the cache.
- * @throws {Error} If there is an error with reading metadata or updating the cache.
- */
 const loadConfiguration = async () => {
     const currentTimestamp = Date.now();
-    if (configCache.metadata && (currentTimestamp - configCache.lastUpdated) < CACHE_DURATION_MS) {
-        return configCache;
-    }
+    if (configCache.metadata && (currentTimestamp - configCache.lastUpdated) < CACHE_DURATION_MS) {return configCache;}
     try {
         const metadataContent = await fs.readFile('./metadata.json', 'utf8');
         const metadata = JSON.parse(metadataContent);
