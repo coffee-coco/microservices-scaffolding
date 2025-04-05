@@ -8,7 +8,7 @@
     "test": "jest",
     "lint": "eslint .",
     "release": "standard-version && node sync-version.js",
-    "develop": "node -e \"const pkg=require('./package.json'); console.log('git add . && git commit -m \\'chore(release): publish new version ' + pkg.version + '\\' && git push --follow-tags origin develop')\" | sh",
+    "develop": "node -e \"const pkg=require('./package.json'); console.log('git add . && git commit -m \\'chore(release): publish new version ' + pkg.version + '\\' && git push --follow-tags origin main')\" | sh",
     "docker:build": "docker build -t ghcr.io/coffee-coco/microservices-scaffolding:latest -t ghcr.io/coffee-coco/microservices-scaffolding:$(node -p -e \"require('./package.json').version\") .",
     "docker:push": "docker push ghcr.io/coffee-coco/microservices-scaffolding:latest && docker push ghcr.io/coffee-coco/microservices-scaffolding:$(node -p -e \"require('./package.json').version\")",
     "docker:publish": "npm run release && npm run test && npm run docker:build && npm run docker:push",
