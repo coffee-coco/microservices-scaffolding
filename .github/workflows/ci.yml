@@ -9,6 +9,8 @@ on:
     branches:
       - main
       - develop
+  pull_request_target:
+    types: [closed]
 
 jobs:
   build-develop:
@@ -49,8 +51,7 @@ jobs:
       run: npm run docker:build
 
   publish-main:
-    if: github.ref == 'refs/heads/main'
-    needs: build-develop
+    if: github.event.pull_request.merged == true && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
