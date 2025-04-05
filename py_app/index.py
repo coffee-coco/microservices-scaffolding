@@ -1,168 +1,163 @@
-\import os
+import functools
 import json
-import time
-import jwt
 import subprocess
-import secrets
+import jwt
+import os
 from flask import Flask, request, jsonify
+from datetime import datetime
+
+# Helper Functions
+def generate_secret_key():
+    return os.urandom(64).hex()
+
+# State Variables
+current_secret_key = generate_secret_key()
+current_token = None
+token_blacklist = set()
 
 # Constants
 CACHE_DURATION_MS = 5 * 60 * 1000  # 5 minutes
-TOKEN_EXPIRATION_TIME = 3600  # 1-hour token expiration in seconds
+TOKEN_EXPIRATION_TIME = '1h'  # 1-hour token expiration
+ERROR_MESSAGES = {
+    "MISSING_TOKEN": "Unauthorized: Missing token",
+    "TOKEN_EXPIRED": "Unauthorized: Token expired",
+    "TOKEN_REUSED": "Forbidden: Token has already been used",
+    "INVALID_TOKEN": "Forbidden: Invalid token",
+}
+RESPONSE_STATUS = {
+    "UNAUTHORIZED": 401,
+    "FORBIDDEN": 403,
+}
 
-# Function to generate a random secret key
-def generate_secret_key():
-    return secrets.token_hex(64)
-
-# Holds configuration information with metadata, SHA value, and last updated timestamp.
+# Cached Configuration
 config_cache = {
     "metadata": None,
     "sha": None,
-    "lastUpdated": 0,
+    "last_updated": 0,
 }
 
-# Token blacklist to store used tokens
-token_blacklist = set()
+# Extract token from request headers
+def extract_auth_token(req):
+    auth_header = req.headers.get("Authorization")
+    return auth_header.split(" ")[1] if auth_header else None
 
-# Cached token
-cached_token = None
-cached_secret_key = generate_secret_key()
-
-def get_git_sha():
-    try:
-        result = subprocess.run(["git", "rev-parse", "HEAD"], stdout=subprocess.PIPE, text=True, check=True)
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        raise e
-
-def handle_error_response(res, status_code, message):
+# Send a standardized error response
+def send_error_response(res, status_code, message):
     print(message)
-    res.status_code = status_code
-    return jsonify({"error": message})
+    response = jsonify({"error": message})
+    response.status_code = status_code
+    return response
 
+# Load configuration with cache control
 def load_configuration():
-    current_timestamp = int(time.time() * 1000)
-
-    if config_cache["metadata"] and (current_timestamp - config_cache["lastUpdated"]) < CACHE_DURATION_MS:
+    current_timestamp = int(datetime.now().timestamp() * 1000)
+    if config_cache["metadata"] and (current_timestamp - config_cache["last_updated"]) < CACHE_DURATION_MS:
         return config_cache
-
     try:
-        with open('./metadata.json', 'r', encoding='utf-8') as f:
+        with open("./metadata.json", "r") as f:
             metadata_content = f.read()
-
         metadata = json.loads(metadata_content)
         sha = get_git_sha()
-
-        config_cache["metadata"] = metadata
-        config_cache["sha"] = sha
-        config_cache["lastUpdated"] = current_timestamp
-
+        config_cache.update({"metadata": metadata, "sha": sha, "last_updated": current_timestamp})
         return config_cache
-    except Exception as e:
-        print("Configuration loading failed:", e)
+    except Exception as error:
+        print("Configuration loading failed:", error)
         raise Exception("Failed to load configuration")
 
-app = Flask(__name__)
-port = int(os.getenv("PORT", 3000))
-
-def authenticate_token():
-    auth_header = request.headers.get('Authorization')
-    token = auth_header.split(' ')[1] if auth_header else None
-
-    if not token:
-        return handle_error_response(jsonify({}), 401, 'Unauthorized: Missing token')
-
-    if token in token_blacklist:
-        return handle_error_response(jsonify({}), 403, 'Forbidden: Token has already been used')
-
+# Use subprocess to fetch the git commit SHA
+def get_git_sha():
     try:
-        user = jwt.decode(token, cached_secret_key, algorithms=["HS256"])
-        request.user = user
+        result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as error:
+        raise error
 
-        # Add token to blacklist after successful verification, except for /protected endpoint
-        if request.path != '/protected':
-            token_blacklist.add(token)
-    except jwt.ExpiredSignatureError:
-        return handle_error_response(jsonify({}), 401, 'Unauthorized: Token expired')
-    except jwt.InvalidTokenError:
-        return handle_error_response(jsonify({}), 403, 'Forbidden: Invalid token')
+# Flask App and Middleware
+app = Flask(__name__)
+port = int(os.environ.get("PORT", 3000))
 
-    return None
+# Middleware to authenticate tokens
+def authenticate_token(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        token = extract_auth_token(request)
+        if not token:
+            return send_error_response(request, RESPONSE_STATUS["UNAUTHORIZED"], ERROR_MESSAGES["MISSING_TOKEN"])
+        if token in token_blacklist:
+            return send_error_response(request, RESPONSE_STATUS["FORBIDDEN"], ERROR_MESSAGES["TOKEN_REUSED"])
+        try:
+            decoded = jwt.decode(token, current_secret_key, algorithms=["HS256"])
+            request.user = decoded
+            if request.path != "/protected":
+                token_blacklist.add(token)
+        except jwt.ExpiredSignatureError:
+            return send_error_response(request, RESPONSE_STATUS["UNAUTHORIZED"], ERROR_MESSAGES["TOKEN_EXPIRED"])
+        except jwt.InvalidTokenError:
+            return send_error_response(request, RESPONSE_STATUS["UNAUTHORIZED"], ERROR_MESSAGES["INVALID_TOKEN"])
+        return func(*args, **kwargs)
+    return wrapper
+
+# Generate a new JWT token
 def generate_token(payload):
-    global cached_secret_key
-    global cached_token
-    cached_secret_key = generate_secret_key()  # Generate a new secret key
-    cached_token = jwt.encode(payload, cached_secret_key, algorithm="HS256")
-    return cached_token
+    global current_secret_key, current_token
+    current_secret_key = generate_secret_key()
+    current_token = jwt.encode(payload, current_secret_key, algorithm="HS256")
+    return current_token
 
-@app.route('/login', methods=['POST'])
+# Routes
+@app.route("/login", methods=["POST"])
 def login():
     user = {"id": 1, "username": "exampleuser"}
     token = generate_token(user)
     return jsonify({"token": token})
 
-@app.route('/refresh', methods=['POST'])
+@app.route("/refresh", methods=["POST"])
 def refresh():
-    auth_header = request.headers.get('Authorization')
-    token = auth_header.split(' ')[1] if auth_header else None
-
+    token = extract_auth_token(request)
     if not token:
-        return handle_error_response(jsonify({}), 401, 'Unauthorized: Missing token')
-
+        return send_error_response(request, RESPONSE_STATUS["UNAUTHORIZED"], ERROR_MESSAGES["MISSING_TOKEN"])
     try:
-        user = jwt.decode(token, cached_secret_key, algorithms=["HS256"], options={"verify_exp": False})
-
-        # if not user.id then Token is still valid, no need for refresh
-        if not user or 'id' not in user:
-            return handle_error_response(jsonify({}), 400, 'Token is still valid, no need for refresh')
-
-        new_token = generate_token({"id": user["id"], "username": user["username"]})
+        decoded = jwt.decode(token, current_secret_key, algorithms=["HS256"], options={"verify_exp": False})
+        if not decoded.get("id"):
+            return send_error_response(request, 400, "Token is still valid, no need for refresh")
+        new_token = generate_token({"id": decoded["id"], "username": decoded["username"]})
         return jsonify({"token": new_token})
     except jwt.InvalidTokenError:
-        return handle_error_response(jsonify({}), 403, 'Forbidden: Invalid token')
+        pass
 
-@app.route('/protected', methods=['GET'])
+@app.route("/protected", methods=["GET"])
+@authenticate_token
 def protected():
-    error_response = authenticate_token()
-    if error_response:
-        return error_response
-
     return jsonify({
         "message": "Access granted to protected resource",
         "user": request.user,
     })
 
-@app.route('/', methods=['GET'])
-def home():
+@app.route("/", methods=["GET"])
+def index():
     return jsonify({"message": "Hello World"})
 
-@app.route('/status', methods=['GET'])
+@app.route("/status", methods=["GET"])
+@authenticate_token
 def status():
-    error_response = authenticate_token()
-    if error_response:
-        return error_response
-
     try:
         config = load_configuration()
         metadata = config["metadata"]
         sha = config["sha"]
-        build_number = os.getenv("BUILD_NUMBER", "0")
-
-        # Invalidate the cached token after use
-        global cached_token
-        cached_token = None
-
+        build_number = os.environ.get("BUILD_NUMBER", "0")
+        global current_token
+        current_token = None
         return jsonify({
             "my-application": [
                 {
                     "description": metadata["description"],
                     "version": f"{metadata['version']}-{build_number}",
                     "sha": sha,
-                },
+                }
             ],
         })
-    except Exception:
-        return handle_error_response(jsonify({}), 500, "Internal Server Error")
+    except Exception as error:
+        return send_error_response(request, 500, "Internal Server Error")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(port=port)

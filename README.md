@@ -77,15 +77,6 @@ The endpoints are defined in the `index.js` file and are documented below with e
     }
     ```
 
-- **Example Usage**:
-  ```bash
-TOKEN=$(curl -s -X POST http://localhost:3000/login | jq -r '.token')
-curl -X GET http://localhost:3000/status -H "Authorization: Bearer $TOKEN"
-EXPIRED_TOKEN=$TOKEN
-TOKEN=$(curl -s -X POST http://localhost:3000/refresh -H "Authorization: Bearer $EXPIRED_TOKEN" | jq -r '.token')
-curl -X GET http://localhost:3000/status -H "Authorization: Bearer $TOKEN"
-  ```
-
 ---
 
 ### Protected Route Endpoint (**GET `/protected`**)
@@ -109,27 +100,35 @@ curl -X GET http://localhost:3000/status -H "Authorization: Bearer $TOKEN"
     }
     ```
 
-- **Example Usage**:
-  ```bash
-  curl -X GET http://localhost:3000/protected \
-       -H "Authorization: Bearer <valid-token>"
-  ```
-- **Example status**:
-## Get a token from the /login endpoint
-
-  ```bash
-TOKEN=$(curl -s -X POST http://localhost:3000/login | jq -r '.token')
-curl -X GET http://localhost:3000/status -H "Authorization: Bearer $TOKEN"
-  ```
+Example Usage
 ---
-- **Example protected**:
-## Get a token from the /login endpoint
-
+#### Get a token from the /login endpoint
   ```bash
 TOKEN=$(curl -s -X POST http://localhost:3000/login | jq -r '.token')
 curl -X GET http://localhost:3000/protected -H "Authorization: Bearer $TOKEN"
   ```
 ---
+#### Get a metadata from the /status endpoint
+  ```bash
+TOKEN=$(curl -s -X POST http://localhost:3000/login | jq -r '.token')
+curl -v -X GET http://localhost:3000/status -H "Authorization: Bearer $TOKEN"
+  ```
+---
+#### verify a token from the /protected endpoint
+
+  ```bash
+  curl -X GET http://localhost:3000/protected \
+       -H "Authorization: Bearer <valid-token>"
+  ```
+---
+#### Example refresh
+```bash
+TOKEN=$(curl -s -X POST http://localhost:3000/login | jq -r '.token')
+curl -X GET http://localhost:3000/status -H "Authorization: Bearer $TOKEN"
+EXPIRED_TOKEN=$TOKEN
+TOKEN=$(curl -s -X POST http://localhost:3000/refresh -H "Authorization: Bearer $EXPIRED_TOKEN" | jq -r '.token')
+curl -X GET http://localhost:3000/status -H "Authorization: Bearer $TOKEN"
+  ```
 
 
 ## How to Run
@@ -138,8 +137,8 @@ curl -X GET http://localhost:3000/protected -H "Authorization: Bearer $TOKEN"
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/your-repo.git
-   cd your-repo
+   git clone https://github.com/coffee-coco/microservices-scaffolding.git
+   cd microservices-scaffolding
    ```
 
 2. **Install Dependencies**:
@@ -149,7 +148,7 @@ curl -X GET http://localhost:3000/protected -H "Authorization: Bearer $TOKEN"
 
 3. **Start the Server**:
    ```bash
-   npm start
+   node index.js
    ```
 
 4. The server should now be running on `http://localhost:3000`.
@@ -157,12 +156,11 @@ curl -X GET http://localhost:3000/protected -H "Authorization: Bearer $TOKEN"
 To summarize:
 - **`develop` branch**: Used for building and testing new versions.
 - **`main` branch**: Used for official releases and stable code.
-
-*** By following a branching strategy, we can maintain a clear separation between development and production-ready code.
+- By following a branching strategy, we can maintain a clear separation between development and production-ready code.
 ---
 
 ## Notes
-
+- **Endpoint Names** The names of the endpoints in my opinion should be renamed.
 - **Authentication Secret**: The application uses `JWT_SECRET_KEY` to sign and verify JWTs. Ensure this is securely set as an environment variable in production.
 - **Default User**: The `/login` endpoint currently returns a token for a hardcoded user object. Update this logic to integrate with your user authentication logic in production.
 - **Ensure `metadata.json` is always present and valid in the root directory. Missing or corrupted metadata will cause the `/status` route to fail.
