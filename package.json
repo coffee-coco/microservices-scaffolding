@@ -7,7 +7,7 @@
     "preinstall": "pip install checkov",
     "test": "jest",
     "lint": "eslint .",
-    "release": "standard-version && node sync-version.js",
+    "release": "standard-version && git add . && git commit -m 'chore(release): publish new version' && git push --follow-tags origin develop",
     "develop": "node -e \"const pkg=require('./package.json'); console.log('git add . && git commit -m \\'chore(release): publish new version ' + pkg.version + '\\' && git push --follow-tags origin develop')\" | sh",
     "docker:build": "docker build -t ghcr.io/coffee-coco/microservices-scaffolding:latest -t ghcr.io/coffee-coco/microservices-scaffolding:$(node -p -e \"require('./package.json').version\") .",
     "docker:push": "docker push ghcr.io/coffee-coco/microservices-scaffolding:latest && docker push ghcr.io/coffee-coco/microservices-scaffolding:$(node -p -e \"require('./package.json').version\")",
