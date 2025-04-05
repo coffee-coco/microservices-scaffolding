@@ -203,10 +203,14 @@ curl -H "Authorization: Bearer $(node generateToken.js)" http://localhost:3000/s
 
 1. Generate a JWT token manually (or through the configured system).
    Example (using [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken)):
-   ```javascript
-   const jwt = require('jsonwebtoken');
-   const token = jwt.sign({ user: 'testUser' }, 'SECRET_TOKEN', { expiresIn: '1h' });
-   console.log(token);
+```javascript
+jwt.verify(token, JWT_SECRET_KEY, (err, user) => {
+  if (err) {
+    return handleErrorResponse(res, 403, 'Forbidden: Invalid token');
+  }
+  req.user = user;
+  next();
+});
    ```
 
 2. Add the token to the `Authorization` header (format: `Bearer <token>`).
