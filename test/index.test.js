@@ -2,6 +2,7 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const fs = require('fs'); // Import the fs module
 
+
 describe('Microservices Application Error Scenarios', () => {
     let app, server;
     const secret = 'your_secret_key';
