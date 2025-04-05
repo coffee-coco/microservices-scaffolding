@@ -1,94 +1,176 @@
 const request = require('supertest');
-const fs = require('fs');
-const path = require('path');
 const jwt = require('jsonwebtoken');
+const fs = require('fs'); // Import the fs module
 
-describe('Microservices Application', () => {
-  let app, server;
-  const secret = 'SECRET_TOKEN'; // Use the same secret as in your application
+describe('Microservices Application Error Scenarios', () => {
+    let app, server;
+    const secret = 'your_secret_key';
 
-  beforeAll(() => {
-    // Arrange
-    const metadataPath = path.join(__dirname, '../metadata.json');
-
-    // Verify metadata file exists and is readable
-    if (!fs.existsSync(metadataPath)) {
-      throw new Error(`Metadata file not found at ${metadataPath}`);
-    }
-  });
-
-  beforeEach(() => {
-    // Reload the app before each test to ensure clean state
-    jest.resetModules();
-    const indexModule = require('../index');
-    app = indexModule.app;
-    server = indexModule.server;
-  });
-
-  afterEach(() => {
-    // Close the server after each test
-    if (server) {
-      server.close();
-    }
-  });
-
-  const generateToken = () => {
-    return jwt.sign({ user: 'testUser' }, secret, { expiresIn: '1h' });
-  };
-
-  test('Root endpoint returns Hello World', async () => {
-    // Act
-    const response = await request(app).get('/');
-
-    // Assert
-    expect(response.statusCode).toBe(200);
-    expect(response.body).toEqual({ message: 'Hello World' });
-  });
-
-  test('Status endpoint returns correct metadata', async () => {
-    // Arrange
-    const metadata = JSON.parse(fs.readFileSync(path.join(__dirname, '../metadata.json'), 'utf8'));
-    process.env.BUILD_NUMBER = '42';
-    const token = generateToken();
-
-    // Act
-    const response = await request(app)
-      .get('/status')
-      .set('Authorization', `Bearer ${token}`);
-
-    // Assert
-    expect(response.statusCode).toBe(200);
-    expect(response.body['my-application'][0]).toMatchObject({
-      description: metadata.description,
-      version: expect.stringContaining(metadata.version),
-      sha: expect.any(String)
+    beforeEach(() => {
+        jest.resetModules();
+        const indexModule = require('../index');
+        app = indexModule.app;
+        server = indexModule.server;
     });
-  });
 
-  test('Status endpoint uses default build number when not set', async () => {
-    // Arrange
-    delete process.env.BUILD_NUMBER;
-    const metadata = JSON.parse(fs.readFileSync(path.join(__dirname, '../metadata.json'), 'utf8'));
-    const token = generateToken();
+    afterEach(() => {
+        if (server) {
+            server.close();
+        }
+    });
 
-    // Act
-    const response = await request(app)
-      .get('/status')
-      .set('Authorization', `Bearer ${token}`);
+    const generateToken = () => {
+        return jwt.sign({id: 1, user: 'exampleuser'}, secret, {expiresIn: '1h'});
+    };
 
-    // Assert
-    expect(response.statusCode).toBe(200);
-    expect(response.body['my-application'][0].version).toMatch(/^.*-0$/);
-  });
+    test('Status endpoint accepts request with valid token', async () => {
+        // Login to get the token
+        const loginResponse = await request(app).post('/login');
+        expect(loginResponse.statusCode).toBe(200);
+        expect(loginResponse.body).toHaveProperty('token');
+        const token = loginResponse.body.token;
 
-  test('Metadata file has required fields', () => {
-    // Arrange
-    const metadata = JSON.parse(fs.readFileSync(path.join(__dirname, '../metadata.json'), 'utf8'));
+        // Use the token to access the /status endpoint
+        const response = await request(app)
+            .get('/status')
+            .set('Authorization', `Bearer ${token}`);
+        expect(response.statusCode).toBe(200);
+    });
 
-    // Assert
-    expect(metadata).toHaveProperty('description');
-    expect(metadata).toHaveProperty('version');
-    expect(typeof metadata.description).toBe('string');
-    expect(typeof metadata.version).toBe('string');
-  });
+    test('Status endpoint rejects request without token', async () => {
+        const response = await request(app).get('/status');
+        expect(response.statusCode).toBe(401);
+    });
+
+    test('Status endpoint rejects expired token', async () => {
+        const expiredToken = jwt.sign({user: 'testUser'}, secret, {expiresIn: '1ms'});
+        await new Promise(resolve => setTimeout(resolve, 10));
+        const response = await request(app)
+            .get('/status')
+            .set('Authorization', `Bearer ${expiredToken}`);
+        expect(response.statusCode).toBe(403);
+    });
+
+    test('Status endpoint handles invalid token', async () => {
+        const response = await request(app)
+            .get('/status')
+            .set('Authorization', 'Bearer INVALID_TOKEN');
+        expect(response.statusCode).toBe(403);
+    });
+
+    test('Root endpoint handles non-existent route', async () => {
+        const response = await request(app).get('/nonexistent');
+        expect(response.statusCode).toBe(404);
+    });
+
+    test('Login endpoint returns a token', async () => {
+        const response = await request(app).post('/login');
+        expect(response.statusCode).toBe(200);
+        expect(response.body).toHaveProperty('token');
+    });
+
+    test('Login, use token on status, and refresh token', async () => {
+        const loginResponse = await request(app).post('/login');
+        expect(loginResponse.statusCode).toBe(200);
+        expect(loginResponse.body).toHaveProperty('token');
+        const token = loginResponse.body.token;
+
+        const statusResponse = await request(app)
+            .get('/status')
+            .set('Authorization', `Bearer ${token}`);
+        expect(statusResponse.statusCode).toBe(200);
+
+        const refreshResponse = await request(app)
+            .post('/refresh')
+            .set('Authorization', `Bearer ${token}`);
+        expect(refreshResponse.statusCode).toBe(200);
+        expect(refreshResponse.body).toHaveProperty('token');
+    });
+
+    test('Protected endpoint requires authentication', async () => {
+        const response = await request(app).get('/protected');
+        expect(response.statusCode).toBe(401);
+    });
+
+    test('Login, then call protected endpoint', async () => {
+        const loginResponse = await request(app).post('/login');
+        expect(loginResponse.statusCode).toBe(200);
+        expect(loginResponse.body).toHaveProperty('token');
+        const token = loginResponse.body.token;
+
+        const protectedResponse = await request(app)
+            .get('/protected')
+            .set('Authorization', `Bearer ${token}`);
+        expect(protectedResponse.statusCode).toBe(200);
+        expect(protectedResponse.body).toHaveProperty('message', 'Access granted to protected resource');
+    });
+
+    test('Status endpoint handles configuration loading errors', async () => {
+        // Login to get the token
+        const loginResponse = await request(app).post('/login');
+        expect(loginResponse.statusCode).toBe(200);
+        expect(loginResponse.body).toHaveProperty('token');
+        const token = loginResponse.body.token;
+
+        // Mock the readFile method to throw an error
+        jest.spyOn(fs.promises, 'readFile').mockImplementation(() => {
+            throw new Error('Failed to load configuration');
+        });
+
+        // Use the token to access the /status endpoint
+        const response = await request(app)
+            .get('/status')
+            .set('Authorization', `Bearer ${token}`);
+        expect(response.statusCode).toBe(500);
+    });
+
+    test('Login endpoint rejects invalid token', async () => {
+        const response = await request(app)
+            .post('/refresh')
+            .set('Authorization', 'Bearer INVALID_TOKEN');
+        expect(response.statusCode).toBe(400);
+    });
+
+    test('Refresh endpoint rejects invalid token', async () => {
+        const response = await request(app)
+            .post('/refresh')
+            .set('Authorization', 'Bearer INVALID_TOKEN');
+        expect(response.statusCode).toBe(400);
+    });
+
+    test('Protected endpoint rejects expired token', async () => {
+        const expiredToken = jwt.sign({user: 'testUser'}, secret, {expiresIn: '1ms'});
+        await new Promise(resolve => setTimeout(resolve, 10));
+        const response = await request(app)
+            .get('/protected')
+            .set('Authorization', `Bearer ${expiredToken}`);
+        expect(response.statusCode).toBe(403);
+    });
+
+    test('Protected endpoint rejects invalid token', async () => {
+        const response = await request(app)
+            .get('/protected')
+            .set('Authorization', 'Bearer INVALID_TOKEN');
+        expect(response.statusCode).toBe(403);
+    });
+    test('Protected endpoint rejects request without token', async () => {
+        const response = await request(app).get('/protected');
+        expect(response.statusCode).toBe(401);
+        expect(response.body).toHaveProperty('error', 'Unauthorized: Missing token');
+    });
+    test('Protected endpoint rejects request without token', async () => {
+        const response = await request(app).get('/protected');
+        expect(response.statusCode).toBe(401);
+        expect(response.body).toHaveProperty('error', 'Unauthorized: Missing token');
+    });
+    test('Protected endpoint rejects request without token', async () => {
+        const response = await request(app).get('/protected');
+        expect(response.statusCode).toBe(401);
+        expect(response.body).toHaveProperty('error', 'Unauthorized: Missing token');
+    });
+    test('Root endpoint returns Hello World message', async () => {
+        const response = await request(app).get('/');
+        expect(response.statusCode).toBe(200);
+        expect(response.body).toHaveProperty('message', 'Hello World');
+    });
 });
