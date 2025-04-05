@@ -230,7 +230,17 @@ curl -H "Authorization: Bearer $(node generateToken.js)" http://localhost:3000/s
      ]
    }
    ```
+### Versioning and Branches
 
+In this project, versions are primarily built from the `develop` branch. This allows for continuous integration and testing of new features and changes. However, versions can also be built from the `main` branch.
+
+In a real-world scenario, only releases should be done on the `main` branch. This ensures that the `main` branch always contains stable and production-ready code. The `develop` branch is used for ongoing development and integration of new features.
+
+To summarize:
+- **`develop` branch**: Used for building and testing new versions.
+- **`main` branch**: Used for official releases and stable code.
+
+*** By following a branching strategy, we can maintain a clear separation between development and production-ready code.
 ---
 
 ## Notes
