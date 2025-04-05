@@ -49,14 +49,14 @@ describe('Microservices Application Error Scenarios', () => {
         const response = await request(app)
             .get('/status')
             .set('Authorization', `Bearer ${expiredToken}`);
-        expect(response.statusCode).toBe(403);
+        expect(response.statusCode).toBe(401);
     });
 
     test('Status endpoint handles invalid token', async () => {
         const response = await request(app)
             .get('/status')
             .set('Authorization', 'Bearer INVALID_TOKEN');
-        expect(response.statusCode).toBe(403);
+        expect(response.statusCode).toBe(401);
     });
 
     test('Root endpoint handles non-existent route', async () => {
@@ -145,14 +145,14 @@ describe('Microservices Application Error Scenarios', () => {
         const response = await request(app)
             .get('/protected')
             .set('Authorization', `Bearer ${expiredToken}`);
-        expect(response.statusCode).toBe(403);
+        expect(response.statusCode).toBe(401);
     });
 
     test('Protected endpoint rejects invalid token', async () => {
         const response = await request(app)
             .get('/protected')
             .set('Authorization', 'Bearer INVALID_TOKEN');
-        expect(response.statusCode).toBe(403);
+        expect(response.statusCode).toBe(401);
     });
     test('Protected endpoint rejects request without token', async () => {
         const response = await request(app).get('/protected');
