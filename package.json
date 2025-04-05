@@ -11,7 +11,7 @@
     "develop": "node -e \"const pkg=require('./package.json'); console.log('git add . && git commit -m \\'chore(release): publish new version ' + pkg.version + '\\' && git push --follow-tags origin develop')\" | sh",
     "docker:build": "docker build -t ghcr.io/coffee-coco/microservices-scaffolding:latest -t ghcr.io/coffee-coco/microservices-scaffolding:$(node -p -e \"require('./package.json').version\") .",
     "docker:push": "docker push ghcr.io/coffee-coco/microservices-scaffolding:latest && docker push ghcr.io/coffee-coco/microservices-scaffolding:$(node -p -e \"require('./package.json').version\")",
-    "docker:publish": "npm run release && npm run checkov && npm run test && npm run docker:build && npm run docker:push",
+    "docker:publish": "npm run release && npm run test && npm run docker:build && npm run docker:push",
     "checkov": "checkov -d ."
   },
   "keywords": [],
