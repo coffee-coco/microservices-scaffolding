@@ -251,6 +251,7 @@ To summarize:
 
 - Ensure `metadata.json` is always present and valid in the root directory. Missing or corrupted metadata will cause the `/status` route to fail.
 - Use a secure mechanism to manage the `JWT_SECRET_KEY`.
+- Note: In this example, we have chosen to use OS commands for Git subprocesses. However, using specific libraries for the language would be best to call git, to avoid potential security issues.
 
 ---
 
