@@ -44,5 +44,14 @@ jobs:
     - name: Install dependencies
       run: npm install
 
-    - name: Build and push Docker image
+    - name: Run tests
+      if: github.ref == 'refs/heads/develop'
+      run: npm test
+
+    - name: Build Docker image
+      if: github.ref == 'refs/heads/develop'
+      run: npm run docker:build
+
+    - name: Publish Docker image
+      if: github.ref == 'refs/heads/main'
       run: npm run docker:publish
