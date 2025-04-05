@@ -1,244 +1,158 @@
 # Node.js Express Application
 
 This project is a **Node.js** backend application built using the **Express.js** framework. It demonstrates key functionalities such as **token-based authentication** using **JSON Web Tokens (JWT)**, metadata-based configuration caching, and dynamically fetching application and build details.
+The endpoints are defined in the `index.js` file and are documented below with examples of how to call them.
 
 ---
 
 ## Table of Contents
 
 1. [Features](#features)
-2. [Configuration](#configuration)
-3. [Endpoints](#endpoints)
-    - [Root Endpoint (`/`)](#root-endpoint)
-    - [Status Endpoint (`/status`)](#status-endpoint)
-4. [Caching Mechanism](#caching-mechanism)
-5. [Authentication](#authentication)
-6. [Error Handling](#error-handling)
-7. [How to Run](#how-to-run)
+2. [Endpoints](#endpoints)
+    - [Login (`/login`)](#login-endpoint-post-login)
+    - [Refresh Token (`/refresh`)](#refresh-token-endpoint-post-refresh)
+    - [Protected Route (`/protected`)](#protected-route-endpoint-get-protected)
+3. [How to Run](#how-to-run)
 
 ---
 
 ## Features
 
-- **Express.js Framework**: Simplifies the creation of server routes.
-- **JWT Authentication**: Secures endpoints to prevent unauthorized access.
-- **Metadata Caching**: Loads and caches application metadata and the latest Git commit SHA for better performance.
-- **Dynamic Build Info**: Shows version and build details by combining metadata and Git data.
-- **Error Handling**: Ensures clear and consistent error messages for API responses.
-
----
-
-## Configuration
-
-### Constants
-
-- **`CACHE_DURATION`**: Defines how long the configuration cache remains valid (default: 5 minutes).
-- **`JWT_SECRET_KEY`**: The secret key used to sign and validate JSON Web Tokens.
-
-### Environment Variables
-
-- **`PORT`**: Specifies the server port (default: `3000`).
-- **`BUILD_NUMBER`**: Optional build number included in metadata responses (default: `0`).
+- **Express.js Framework**: Implements fast and simple HTTP routing with middlewares.
+- **JWT Authentication**: Secures endpoints using JSON Web Tokens with an expiration time.
+- **Caching**: Implements in-memory caching for application metadata and Git commit SHA.
+- **Protected Routes**: Demonstrates secure data access using JWT token authorization.
+- **Error Handling**: Handles missing or invalid tokens with clear JSON error messages.
+- **Token Refresh**: Implements token refresh functionality for expired tokens.
 
 ---
 
 ## Endpoints
 
-### Root Endpoint
+### Login Endpoint (**POST `/login`**)
 
-#### **GET `/`**
-
-- **Description**: A public, unauthenticated route returning a simple JSON greeting.
-- **Response**:
-  ```json
-  { "message": "Hello World" }
-  ```
-
----
-
-### Status Endpoint
-
-#### **GET `/status`**
-
-- **Description**: Returns application metadata, build details, and the latest Git commit SHA. This route is **protected** by JWT authentication.
-- **Headers**:
-  - Requires an `Authorization` header in the form of `Bearer <token>`.
+- **Description**: Generates a new JSON Web Token (JWT) for the user.
+- **Path**: `/login`  
+- **Method**: `POST`  
+- **Request Body**: None (a default user is pre-configured in the code with username `exampleuser`).  
 - **Response**:
   - On success:
     ```json
     {
-      "my-application": [
-        {
-          "description": "<description-from-metadata>",
-          "version": "<metadata-version>-<build-number>",
-          "sha": "<latest-git-sha>"
-        }
-      ]
+      "token": "<jwt-token>"
     }
     ```
-  - On failure (e.g., missing JWT or internal error):
+  - On failure:
     ```json
-    { "error": "<error-message>" }
+    {
+      "error": "<error-message>"
+    }
     ```
 
----
-
-## Caching Mechanism
-
-### **In-Memory Cache**
-
-The application uses an in-memory cache to improve performance by avoiding repeated file system reads or shell command executions.
-
-- **Cache Structure**:
-  ```javascript
-  const configCache = {
-    metadata: null, // Parsed JSON from `metadata.json`.
-    sha: null,      // Latest Git SHA hash.
-    lastUpdated: 0  // Timestamp of the last cache update.
-  };
+- **Example Usage**:
+  ```bash
+  curl -X POST http://localhost:3000/login
   ```
-- **Cache Duration**: 5 minutes by default (configurable through `CACHE_DURATION`).
-
-### How Caching Works:
-
-1. The cache is checked to determine if it’s still valid (based on `lastUpdated` and `CACHE_DURATION`).
-2. If valid, the cached metadata and Git SHA are returned.
-3. If invalid, configuration is reloaded:
-   - **Metadata** is read from `metadata.json`.
-   - The Git commit **SHA** is retrieved using `git rev-parse HEAD`.
-   - Both values are stored in the cache.
 
 ---
 
-## Authentication
+### Refresh Token Endpoint (**POST `/refresh`**)
 
-### **JWT Authentication Middleware**
+- **Description**: Generates a new JWT based on an expired token. The expired token is passed via the `Authorization` header.
+- **Path**: `/refresh`  
+- **Method**: `POST`  
+- **Headers**:
+  - `Authorization: Bearer <your-expired-token>`
+- **Response**:
+  - On success:
+    ```json
+    {
+      "token": "<new-jwt-token>"
+    }
+    ```
+  - On failure:
+    ```json
+    {
+      "error": "<error-message>"
+    }
+    ```
 
-The **`authenticateToken`** middleware protects the `/status` endpoint by verifying a JSON Web Token (JWT).
-
-- **How It Works**:
-  1. The token is extracted from the `Authorization` header (format: `Bearer <token>`).
-  2. The token is verified using the `JWT_SECRET_KEY`.
-  3. If valid, the decoded user information is attached to the request.
-  4. If invalid or missing, the request is rejected.
-
-- **Error Responses**:
-  - Missing Token: `401 Unauthorized`
-  - Invalid Token: `403 Forbidden`
-
----
-
-## Error Handling
-
-A centralized error handler is employed to log errors on the server and send user-friendly JSON responses.
-
-### Utility Function: `handleErrorResponse`
-
-**Parameters**:
-- `res`: Express `response` object.
-- `statusCode`: HTTP status code for response (e.g., 401, 500, etc.).
-- `message`: Custom error message.
-
-**Example**:
-```javascript
-handleErrorResponse(res, 500, 'Internal Server Error');
-```
-
-**Client Response**:
-```json
-{ "error": "Internal Server Error" }
-```
+- **Example Usage**:
+  ```bash
+TOKEN=$(curl -s -X POST http://localhost:3000/login | jq -r '.token')
+curl -X GET http://localhost:3000/status -H "Authorization: Bearer $TOKEN"
+EXPIRED_TOKEN=$TOKEN
+TOKEN=$(curl -s -X POST http://localhost:3000/refresh -H "Authorization: Bearer $EXPIRED_TOKEN" | jq -r '.token')
+curl -X GET http://localhost:3000/status -H "Authorization: Bearer $TOKEN"
+  ```
 
 ---
+
+### Protected Route Endpoint (**GET `/protected`**)
+
+- **Description**: A protected endpoint accessible only with a valid JWT. If the provided token is valid, it returns a success message.
+- **Path**: `/protected`  
+- **Method**: `GET`  
+- **Headers**:
+  - `Authorization: Bearer <your-valid-token>`
+- **Response**:
+  - On success:
+    ```json
+    {
+      "message": "You have access to this protected data!"
+    }
+    ```
+  - On failure:
+    ```json
+    {
+      "error": "Unauthorized"
+    }
+    ```
+
+- **Example Usage**:
+  ```bash
+  curl -X GET http://localhost:3000/protected \
+       -H "Authorization: Bearer <valid-token>"
+  ```
+- **Example status**:
+## Get a token from the /login endpoint
+
+  ```bash
+TOKEN=$(curl -s -X POST http://localhost:3000/login | jq -r '.token')
+curl -X GET http://localhost:3000/status -H "Authorization: Bearer $TOKEN"
+  ```
+---
+- **Example protected**:
+## Get a token from the /login endpoint
+
+  ```bash
+TOKEN=$(curl -s -X POST http://localhost:3000/login | jq -r '.token')
+curl -X GET http://localhost:3000/protected -H "Authorization: Bearer $TOKEN"
+  ```
+---
+
 
 ## How to Run
 
-### Running Locally
+### Steps to Start the Application
 
-1. Install Node.js and npm.
-2. Clone the repository.
+1. **Clone the Repository**:
    ```bash
-   git clone $ docker pull ghcr.io/coffee-coco/microservices-scaffolding:latest
-   cd microservices-scaffolding
+   git clone https://github.com/your-repo.git
+   cd your-repo
    ```
-3. Install dependencies:
+
+2. **Install Dependencies**:
    ```bash
    npm install
    ```
-4. Create the necessary **`metadata.json`** file in the project root. Example:
-   ```json
-   {
-     "description": "My Sample Application",
-     "version": "1.0.0"
-   }
-   ```
-5. Start the application:
+
+3. **Start the Server**:
    ```bash
-   node index.js
-   ```
-### To generate a JWT token, you can create a new file called generateToken.js with the following content:
-``` bash
-curl -H "Authorization: Bearer $(node generateToken.js)" http://localhost:3000/status
-```
-   or use a process manager like **npm scripts** or **nodemon** for development.
-
-6. Navigate to [http://localhost:3000](http://localhost:3000).
-
----
-
-## Example Usage
-
-### Testing Root Route
-
-- Method: **GET**
-- URL: `http://localhost:3000/`
-- Response:
-  ```json
-  { "message": "Hello World" }
-  ```
-
----
-
-### Testing Status Route
-
-1. Generate a JWT token manually (or through the configured system).
-   Example (using [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken)):
-```javascript
-jwt.verify(token, JWT_SECRET_KEY, (err, user) => {
-  if (err) {
-    return handleErrorResponse(res, 403, 'Forbidden: Invalid token');
-  }
-  req.user = user;
-  next();
-});
+   npm start
    ```
 
-2. Add the token to the `Authorization` header (format: `Bearer <token>`).
-3. Call the `/status` endpoint:
-   - Method: **GET**
-   - URL: `http://localhost:3000/status`
-   - Headers:
-     ```json
-     { "Authorization": "Bearer <your-token>" }
-     ```
-
-4. Example Response:
-   ```json
-   {
-     "my-application": [
-       {
-         "description": "My Sample Application",
-         "version": "1.0.0-42",
-         "sha": "abcdefgh1234567890"
-       }
-     ]
-   }
-   ```
-### Versioning and Branches
-
-In this project, versions are primarily built from the `develop` branch. This allows for continuous integration and testing of new features and changes. However, versions can also be built from the `main` branch.
-
-In a real-world scenario, only releases should be done on the `main` branch. This ensures that the `main` branch always contains stable and production-ready code. The `develop` branch is used for ongoing development and integration of new features.
+4. The server should now be running on `http://localhost:3000`.
 
 To summarize:
 - **`develop` branch**: Used for building and testing new versions.
@@ -249,20 +163,11 @@ To summarize:
 
 ## Notes
 
-- Ensure `metadata.json` is always present and valid in the root directory. Missing or corrupted metadata will cause the `/status` route to fail.
-- Use a secure mechanism to manage the `JWT_SECRET_KEY`.
-- Note: In this example, we have chosen to use OS commands for Git subprocesses. However, using specific libraries for the language would be best to call git, to avoid potential security issues.
-
----
-
-## Dependencies
-
-| Package         | Version |
-|-----------------|---------|
-| express         | ^4.x.x  |
-| jsonwebtoken    | ^9.x.x  |
-| child_process   | Node.js built-in  |
-| fs.promises     | Node.js built-in  |
+- **Authentication Secret**: The application uses `JWT_SECRET_KEY` to sign and verify JWTs. Ensure this is securely set as an environment variable in production.
+- **Default User**: The `/login` endpoint currently returns a token for a hardcoded user object. Update this logic to integrate with your user authentication logic in production.
+- **Ensure `metadata.json` is always present and valid in the root directory. Missing or corrupted metadata will cause the `/status` route to fail.
+- **Use a secure mechanism to manage the `JWT_SECRET_KEY`.
+- **Note: In this example, we have chosen to use OS commands for Git subprocesses. However, using specific libraries for the language would be best to call git, to avoid potential security issues.
 
 ---
 
